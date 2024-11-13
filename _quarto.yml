@@ -1,0 +1,29 @@
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "FAO food balances"
+  navbar:
+    left:
+      - href: index.qmd
+        text: "Index"
+      - href: author.qmd
+        text: "Author"
+    
+    right: 
+      - icon: github # add icons as navbar buttons
+        href: https://github.com/worldregio/pew_opi
+        target: _blank
+  page-footer:
+    background: dark
+    left: Copyright 2024, Claude Grasland
+format:
+  html:
+    theme: 
+      light: minty    
+      dark: solar
+    css: styles.css
+    toc: true
+
+
