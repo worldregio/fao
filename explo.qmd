@@ -1,0 +1,97 @@
+---
+title: "Overview"
+format: 
+  html:
+    embed-resources: true
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+library(knitr)
+library(data.table, quietly=T, verbose =F)
+library(dplyr, quietly=T, verbose =F)
+library(reshape2, quietly=T, verbose =F)
+library(sf, quietly=T, verbose =F)
+library(mapsf, quietly=T, verbose =F)
+```
+
+## Introduction
+
+We present here some preliminary experiments in order to give an overview of the possibilities of analysis of world region based on the Food Balance Sheets (FBS) published by FAO.
+
+## Sources
+
+
+We use in a first step the most recent data produced by FAO, covering the period 2010 to present. We will further used another database covering the period 1963-2013 but not immediately as they are some difficulties for the harmonization of the two databases.
+
+### Geometry
+
+We have prepared different geometry adapted to the 188 countries or territories available in the database.
+
+```{r}
+map<-readRDS("geom/wld_all.RDS")
+map3<-readRDS("geom/wld_states_fao.RDS")
+map2<-readRDS("geom/wld_region_fao.RDS")
+map1<-readRDS("geom/wld_continent_fao.RDS")
+```
+
+
+```{r}
+
+mf_map(map1, type="typo", var="continent")
+mf_map(map, type="base", col=NA, add=T, lwd=0.6)
+mf_map(map2, type="base", col=NA, add=T, lwd=2)
+mf_layout("179 states located in 5 continents and 22 regions", frame=T)
+```
+
+
+### Population
+
+The FAO has collected variables from other sources (UN, Worldbank,...) in order to get estimates of the population of territorial units for which the FBS has been collected. We eliminate the unit called *China* (F351) because it is the sum of four other units present in the database  *China Mainland* (CHN), *Hong Kong* (HKG), *Macao* (MAC) and ... *Taïwan* (TWN). This duplication of data is clearly not practical from statistical point of view. But we can easily imagine why the republic of China has obliged the FAO to proceed this way ...
+
+```{r}
+pop<-fread("source/fbs2010/FAOSTAT_data_en_11-13-2024_POP.csv") 
+pop <- pop %>% select(iso3 = `Area Code (ISO3)`, year=Year, pop=Value) %>%
+         filter(iso3 !="F351", iso3 %in% map3$iso3) 
+
+pop<-pop %>% left_join(st_drop_geometry(map3)) %>% as.data.frame()
+
+kable(head(pop), caption = "Population 2010-2022 - Long format")
+```
+
+The dataset is in long format but can easily be transformed in wide format :
+
+```{r}
+x<-  reshape2::dcast(pop, formula = iso3~year, value.var="pop",fill = NA)
+kable(head(x), caption = "Population 2010-2022 - wide format")
+
+```
+
+Some missing values can be observed but only for a limited number of territorial units :
+
+```{r}
+mis <- pop %>% 
+        group_by(iso3, name) %>% 
+       summarise(available = n(), max = 13 ,pct = round(100*n()/13,1)) %>%
+        filter(pct<100) %>% arrange(pct)
+kable(mis)
+```
+
+We elaborate a map of the average share of world population over the period : 
+
+
+
+```{r}
+avgpop<-pop %>% group_by(iso3) %>% summarise(popmean = mean(pop, na.rm=T)) %>%
+         mutate(pct = 100*popmean / sum(popmean))
+
+mapdon <-map3 %>% left_join(avgpop)
+
+mf_map(map, type="base", col="lightyellow")
+mf_map(mapdon, type="prop",var="pct", leg_title = "%", inches =0.1)
+mf_layout(title = "Average share of world population 2010-2022",
+          credits = "FAO - Food Balance Sheets - 2010-2022",
+          frame=T)
+```
+

@@ -21,6 +21,13 @@
     "text": "World regionalisation\nMental maps\nSpatial interaction models"
   },
   {
+    "objectID": "about.html",
+    "href": "about.html",
+    "title": "About",
+    "section": "",
+    "text": "About this site\n\n1 + 1\n\n[1] 2"
+  },
+  {
     "objectID": "index.html",
     "href": "index.html",
     "title": "fao2",
@@ -28,10 +35,24 @@
     "text": "This is a Quarto website.\nTo learn more about Quarto websites visit https://quarto.org/docs/websites.\n\n1 + 1\n\n[1] 2"
   },
   {
-    "objectID": "about.html",
-    "href": "about.html",
-    "title": "About",
+    "objectID": "explo.html",
+    "href": "explo.html",
+    "title": "Overview",
     "section": "",
-    "text": "About this site\n\n1 + 1\n\n[1] 2"
+    "text": "We present here some preliminary experiments in order to give an overview of the possibilities of analysis of world region based on the Food Balance Sheets (FBS) published by FAO."
+  },
+  {
+    "objectID": "explo.html#introduction",
+    "href": "explo.html#introduction",
+    "title": "Overview",
+    "section": "",
+    "text": "We present here some preliminary experiments in order to give an overview of the possibilities of analysis of world region based on the Food Balance Sheets (FBS) published by FAO."
+  },
+  {
+    "objectID": "explo.html#sources",
+    "href": "explo.html#sources",
+    "title": "Overview",
+    "section": "Sources",
+    "text": "Sources\nWe use in a first step the most recent data produced by FAO, covering the period 2010 to present. We will further used another database covering the period 1963-2013 but not immediately as they are some difficulties for the harmonization of the two databases.\n\nGeometry\nWe have prepared different geometry adapted to the 188 countries or territories available in the database.\n\n\n\n\n\n\n\nPopulation\nThe FAO has collected variables from other sources (UN, Worldbank,…) in order to get estimates of the population of territorial units for which the FBS has been collected. We eliminate the unit called China (F351) because it is the sum of four other units present in the database China Mainland (CHN), Hong Kong (HKG), Macao (MAC) and … Taïwan (TWN). This duplication of data is clearly not practical from statistical point of view. But we can easily imagine why the republic of China has obliged the FAO to proceed this way …\n\n\nJoining with `by = join_by(iso3)`\n\n\n\nPopulation 2010-2022 - Long format\n\n\niso3\nyear\npop\nname\nregion\ncontinent\n\n\n\n\nAFG\n2010\n28189.67\nAfghanistan\nSouthern Asia\nAsia\n\n\nAFG\n2011\n29249.16\nAfghanistan\nSouthern Asia\nAsia\n\n\nAFG\n2012\n30466.48\nAfghanistan\nSouthern Asia\nAsia\n\n\nAFG\n2013\n31541.21\nAfghanistan\nSouthern Asia\nAsia\n\n\nAFG\n2014\n32716.21\nAfghanistan\nSouthern Asia\nAsia\n\n\nAFG\n2015\n33753.50\nAfghanistan\nSouthern Asia\nAsia\n\n\n\n\n\nThe dataset is in long format but can easily be transformed in wide format :\n\n\n\nPopulation 2010-2022 - wide format\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\niso3\n2010\n2011\n2012\n2013\n2014\n2015\n2016\n2017\n2018\n2019\n2020\n2021\n2022\n\n\n\n\nAFG\n28189.67\n29249.16\n30466.48\n31541.21\n32716.21\n33753.50\n34636.21\n35643.42\n36686.78\n37769.50\n38972.23\n40099.46\n41128.77\n\n\nAGO\n23364.19\n24259.11\n25188.29\n26147.00\n27128.34\n28127.72\n29154.75\n30208.63\n31273.53\n32353.59\n33428.49\n34503.77\n35588.99\n\n\nALB\n2913.40\n2900.65\n2892.19\n2887.01\n2884.10\n2882.48\n2881.06\n2879.36\n2877.01\n2873.88\n2866.85\n2854.71\n2842.32\n\n\nARE\n8481.77\n8575.20\n8664.97\n8751.85\n8835.95\n8916.90\n8994.26\n9068.30\n9140.17\n9211.66\n9287.29\n9365.15\n9441.13\n\n\nARG\n41100.12\n41520.74\n41952.36\n42388.27\n42824.05\n43257.07\n43668.24\n44054.62\n44413.60\n44745.52\n45036.03\n45276.78\n45510.32\n\n\nARM\n2946.29\n2928.98\n2914.42\n2901.39\n2889.93\n2878.59\n2865.84\n2851.92\n2836.56\n2820.60\n2805.61\n2790.97\n2780.47\n\n\n\n\n\nSome missing values can be observed but only for a limited number of territorial units :\n\n\n`summarise()` has grouped output by 'iso3'. You can override using the\n`.groups` argument.\n\n\n\n\n\niso3\nname\navailable\nmax\npct\n\n\n\n\nBHR\nBahrain\n4\n13\n30.8\n\n\nBTN\nBhutan\n4\n13\n30.8\n\n\nFSM\nMicronesia (Federated States of)\n4\n13\n30.8\n\n\nMHL\nMarshall Islands\n4\n13\n30.8\n\n\nNRU\nNauru\n4\n13\n30.8\n\n\nQAT\nQatar\n4\n13\n30.8\n\n\nSSD\nSouth Sudan\n4\n13\n30.8\n\n\nTON\nTonga\n4\n13\n30.8\n\n\nPRK\nDemocratic People’s Republic of Korea\n9\n13\n69.2\n\n\nSDN\nSudan\n11\n13\n84.6\n\n\n\n\n\nWe elaborate a map of the average share of world population over the period :\n\n\nJoining with `by = join_by(iso3)`"
   }
 ]

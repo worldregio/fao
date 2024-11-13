@@ -10,10 +10,12 @@ website:
         text: "Index"
       - href: author.qmd
         text: "Author"
+      - href: explo.qmd
+        text: "Exploration"
     
     right: 
       - icon: github # add icons as navbar buttons
-        href: https://github.com/worldregio/pew_opi
+        href: https://github.com/worldregio/fao
         target: _blank
   page-footer:
     background: dark
