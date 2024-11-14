@@ -5,7 +5,6 @@ format:
     embed-resources: true
 ---
 
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
 library(knitr)
@@ -22,7 +21,6 @@ We present here some preliminary experiments in order to give an overview of the
 
 ## Sources
 
-
 We use in a first step the most recent data produced by FAO, covering the period 2010 to present. We will further used another database covering the period 1963-2013 but not immediately as they are some difficulties for the harmonization of the two databases.
 
 ### Geometry
@@ -36,7 +34,6 @@ map2<-readRDS("geom/wld_region_fao.RDS")
 map1<-readRDS("geom/wld_continent_fao.RDS")
 ```
 
-
 ```{r}
 
 mf_map(map1, type="typo", var="continent")
@@ -45,10 +42,9 @@ mf_map(map2, type="base", col=NA, add=T, lwd=2)
 mf_layout("179 states located in 5 continents and 22 regions", frame=T)
 ```
 
-
 ### Population
 
-The FAO has collected variables from other sources (UN, Worldbank,...) in order to get estimates of the population of territorial units for which the FBS has been collected. We eliminate the unit called *China* (F351) because it is the sum of four other units present in the database  *China Mainland* (CHN), *Hong Kong* (HKG), *Macao* (MAC) and ... *Taïwan* (TWN). This duplication of data is clearly not practical from statistical point of view. But we can easily imagine why the republic of China has obliged the FAO to proceed this way ...
+The FAO has collected variables from other sources (UN, Worldbank,...) in order to get estimates of the population of territorial units for which the FBS has been collected. We eliminate the unit called *China* (F351) because it is the sum of four other units present in the database *China Mainland* (CHN), *Hong Kong* (HKG), *Macao* (MAC) and ... *Taïwan* (TWN). This duplication of data is clearly not practical from statistical point of view. But we can easily imagine why the republic of China has obliged the FAO to proceed this way ...
 
 ```{r}
 pop<-fread("source/fbs2010/FAOSTAT_data_en_11-13-2024_POP.csv") 
@@ -78,9 +74,7 @@ mis <- pop %>%
 kable(mis)
 ```
 
-We elaborate a map of the average share of world population over the period : 
-
-
+We elaborate a map of the average share of world population over the period :
 
 ```{r}
 avgpop<-pop %>% group_by(iso3) %>% summarise(popmean = mean(pop, na.rm=T)) %>%
@@ -94,4 +88,136 @@ mf_layout(title = "Average share of world population 2010-2022",
           credits = "FAO - Food Balance Sheets - 2010-2022",
           frame=T)
 ```
+
+### Food Balance Sheet (Kcal)
+
+We select the Food Balance Sheet (FBS) measured in Kcal/capita/day which is one of the four possible option of measure. Initialy the table has a lot of columns :
+
+#### Structure of data
+
+```{r}
+x <- fread("source/fbs2010/FAOSTAT_data_en_11-13-2024-KCAL.csv")
+kable(head(x,10), caption = "FBS 2010-2022 - Raw data")
+```
+
+We decide to simplify a bit the structure and to reduce the number of columns like this :
+
+```{r}
+fbs<-x %>% select(year= Year,iso3=`Area Code (ISO3)`, item = `Item Code (FBS)`, item_name=Item, K=Value)
+kable(head(fbs,10), caption = "FBS 2010-2022 - Simplified")
+```
+
+#### Hierarchisation of food items
+
+In the initial format delivered by FAO, the classification of items is a mixture of aggregates at different hierarchical level. Here we have decided to collect only the lowest level and to add a hierarchy of aggregation levels based on the table below :
+
+```{r}
+code_items<-read.csv2("data/FBS_codes.csv") %>% select(1:8) %>% unique()
+names(code_items)<-c("i0","name_i0","i1","name_i1","i2","name_i2","i","name_i")
+kable(code_items,caption = "Hierarchy of food items")
+```
+
+### Synthetic data base
+
+We decide to add the hiearachy of food items but also the hierarchy of geographical levels and the population in a single file where it will be possible to realize easily all types of analysis.
+
+```{r}
+names(fbs)<-c("t","s","i","name_i","Kist")
+fbs$i<-as.numeric(substr(fbs$i,2,5)) 
+code_items<-code_items %>% select(-name_i)
+base <- fbs %>% left_join(code_items) %>% filter(is.na(i0)==F)
+names(pop)<-c("s","t","Pst","name_s","reg_s","cont_s")
+pop$t<-as.numeric(pop$t)
+base <- base %>% left_join(pop)
+base<-base[,c(2,1,13,3,4,5,12,6:11,14:15)]
+kable(head(base),caption = "Structure of multilevel database")
+saveRDS(base,"data/base_fao_Kcal_2010_2022.RDS")
+class(base)
+```
+
+As we can see the database is a "cube" with three elementary dimensions :
+
+-   $t$ : the year of observation
+-   $s$ : the state concerned
+-   $i$ : the item of food at the elementary level.
+
+Two quantitative indicators are available :
+
+-   $F_{ijt}$ : the consumption of food from item $i$ in state $s$ during the year $t$ measured in kcal/capita/day
+-   $P_{it}$ : the estimated population of state $i$ during the year $t$ which can be used as weighting criteria for the procedure of agregation if we want to obtain corrected value at world, continental or regional level.
+
+The following columns are different keys of aggregation for food items (i0, i1,i2) or for spatial units (reg, cont)
+
+## Test of the database
+
+The synthetic database has 171069 lines which is less than the total number of value of the cube that should be equal to 83 items x 190 countries x 13 years = 205010. It means that the matrix is filled at 83.4% but 16.6% of values are missing (no data for some countries some years) or equal to 0 (items that are not reported in one country).
+
+### Global Food Balance in 2022
+
+We can firstly try to compute some global values, for example in 2022.
+
+#### World level
+
+```{r}
+base <-readRDS("data/base_fao_Kcal_2010_2022.RDS")
+x<-base %>% filter(t=="2022") %>%
+             group_by(s) %>%
+            summarise(K=sum(Kist),
+                      P = max(Pst)) %>%
+            mutate(KP=K*P) %>%
+           summarise(KP=sum(KP,na.rm=T),P=sum(P,na.rm=T))%>%
+           mutate(K=KP/P)
+kable(x, caption = "Food ration in Kcal by day at world level in 2022",col.names = c("Total Kcal","Total Population", "Kcal/capita")
+      )
+```
+
+- **Comment** : If our results are correct, the average food ration at world level (weighted by population of countries) is equal to **2395 kcal/capita/day**. This value is based on 190 coutries that summarize a total of 7.915 billions of inhabitants. 
+
+
+
+#### Continental level
+
+```{r}
+base <-readRDS("data/base_fao_Kcal_2010_2022.RDS")
+x<-base %>% filter(t=="2022", is.na(cont_s)==F) %>%
+             group_by(s,cont_s) %>%
+            summarise(K=sum(Kist),
+                      P = max(Pst)) %>%
+            mutate(KP=K*P) %>%
+            group_by(cont_s)%>%
+           summarise(KP=sum(KP,na.rm=T),P=sum(P,na.rm=T))%>%
+           mutate( KPpct=100*KP/sum(KP),Ppct=100*P/sum(P), K=KP/P, Index=100*KPpct/Ppct) %>% 
+  arrange(Index)
+kable(x, caption = "Food ration in Kcal by day at continental level in 2022",
+      col.names = c("Continent","Kcal","Population","% Kcal","% Pop", "Kcal/capita", "index 100 = World"),
+      digits=c(0,0,0,2,2,0)
+      )
+```
+
+- **Comment** : At continental level, we add some columns in order to compare for each continent the share of population and the share of food consumption measured in Kcal. According to our results, the lowest level of consumption is observed in **Asia** which account for 59.1% of world population but only 51.9% of food consumption mesured in Kcal. The level of consumption of Asia is at index 88 i.e -12% lower than the world average. On the contrary, Europe is at index 140 which is +40% higher than the world average. 
+
+
+
+#### Regional level
+
+```{r}
+base <-readRDS("data/base_fao_Kcal_2010_2022.RDS")
+x<-base %>% filter(t=="2022", is.na(cont_s)==F) %>%
+             group_by(s,reg_s) %>%
+            summarise(K=sum(Kist),
+                      P = max(Pst)) %>%
+            mutate(KP=K*P) %>%
+            group_by(reg_s)%>%
+           summarise(KP=sum(KP,na.rm=T),P=sum(P,na.rm=T))%>%
+           mutate( KPpct=100*KP/sum(KP),Ppct=100*P/sum(P), K=KP/P, Index=100*KPpct/Ppct) %>% arrange(Index)
+kable(x, caption = "Food ration in Kcal by day at regional level in 2022",
+      col.names = c("region","Kcal","Population","% Kcal","% Pop", "Kcal/capita", "index 100 = World"),
+      digits=c(0,0,0,2,2,0)
+      )
+```
+
+- **Comment** : We can replicate the same analysis at the level of the 22 regions defined by UN as subdivisions of continents. We can reveal more important inequalities with a lowest level of 79 (-21% of world average) in southern Asia and an highest level of 155 (+55% of world average) in Northern America. These results are consistent with the publication of the FAO and the litterature on the subject.
+
+
+
 
