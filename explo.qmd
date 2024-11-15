@@ -1,8 +1,9 @@
 ---
-title: "Overview"
+title: "Data check"
 format: 
   html:
     embed-resources: true
+bibliography: references.bib
 ---
 
 ```{r setup, include=FALSE}
@@ -13,13 +14,15 @@ library(dplyr, quietly=T, verbose =F)
 library(reshape2, quietly=T, verbose =F)
 library(sf, quietly=T, verbose =F)
 library(mapsf, quietly=T, verbose =F)
+library(RColorBrewer)
+library(ggplot2, quietly=T, verbose =F)
 ```
 
 ## Introduction
 
-We present here some preliminary experiments in order to give an overview of the possibilities of analysis of world region based on the Food Balance Sheets (FBS) published by FAO.
+We present here some preliminary experiments in order to give an overview of the possibilities of analysis of world region based on the Food Balance Sheets (FBS) published by FAO. We import the data, realize some harmonization and check if our results are the same than the most recent report published by FAO @fao2023.
 
-## Sources
+## Data collection
 
 We use in a first step the most recent data produced by FAO, covering the period 2010 to present. We will further used another database covering the period 1963-2013 but not immediately as they are some difficulties for the harmonization of the two databases.
 
@@ -164,11 +167,18 @@ Two quantitative indicators are available :
 
 The following columns are different keys of aggregation for food items (i0, i1,i2) or for spatial units (reg, cont)
 
-## Test of the database
+## Data check
 
-The synthetic database has 171069 lines which is less than the total number of value of the cube that should be equal to 83 items x 190 countries x 13 years = 205010. It means that the matrix is filled at 83.4% but 16.6% of values are missing (no data for some countries some years) or equal to 0 (items that are not reported in one country).
+```{r, eval=FALSE}
+# length(table(base$s))
+# length(table(base$i))
+# length(table(base$t))
+# 193650 /(96*189*13)
+```
 
-### Global Food Balance in 2021
+The synthetic database has 193650 lines which is less than the total number of value of the cube that should be equal to 96 food items x 189 countries x 13 years = 235872. It means that the matrix is filled at 82% but 18% of values are missing (no data for some countries some years) or equal to 0 (items that are not reported in one country).
+
+### Check 1 : total food supply
 
 We can firstly try to compute some global values, for example in 2021.
 
@@ -187,9 +197,7 @@ kable(x, caption = "Food ration in Kcal by day at world level in 2021",col.names
       )
 ```
 
-- **Comment** : If our results are correct, the average food ration at world level (weighted by population of countries) is equal to **2978 kcal/capita/day**. This value is based on 190 coutries that summarize a total of 7.850 billions of inhabitants. We have verified in the publication of FAO that it is exactly the figure published in the report of the  organization.
-
-
+-   **Comment** : If our results are correct, the average food ration at world level (weighted by population of countries) is equal to **2978 kcal/capita/day**. This value is based on 190 coutries that summarize a total of 7.850 billions of inhabitants. We have verified in the publication of FAO that it is exactly the figure published in the report of the organization @fao2023.
 
 #### Continental level
 
@@ -210,9 +218,7 @@ kable(x, caption = "Food ration in Kcal by day at continental level in 2021",
       )
 ```
 
-- **Comment** : At continental level, we add some columns in order to compare for each continent the share of population and the share of food consumption measured in Kcal. According to our results, the lowest level of consumption is observed in **Africa** which account for 17.7% of world population but only 15.3% of food consumption mesured in Kcal. The level of consumption of Africa is at index 86 i.e -14% lower than the world average. On the contrary, Europe is at index 116 which is +16% higher than the world average. As inprevious case, we obtain the same figure than the FAO report. 
-
-
+-   **Comment** : At continental level, we add some columns in order to compare for each continent the share of population and the share of food consumption measured in Kcal. According to our results, the lowest level of consumption is observed in **Africa** which account for 17.7% of world population but only 15.3% of food consumption mesured in Kcal. The level of consumption of Africa is at index 86 i.e -14% lower than the world average. On the contrary, Europe is at index 116 which is +16% higher than the world average. As inprevious case, we obtain the same figure than the FAO report @fao2023.
 
 #### Regional level
 
@@ -232,10 +238,136 @@ kable(x, caption = "Food ration in Kcal by day at regional level in 2021",
       )
 ```
 
-- **Comment** : We can replicate the same analysis at the level of the 22 regions defined by UN as subdivisions of continents. We can reveal more important inequalities with a lowest level of 76 (-24% of world average) in Eastern Africa and an highest level of 130 (+30% of world average) in Northern America. These results are consistent with the publication of the FAO and the litterature on the subject.
+-   **Comment** : We can replicate the same analysis at the level of the 22 regions defined by UN as subdivisions of continents. We can reveal more important inequalities with a lowest level of 76 (-24% of world average) in Eastern Africa and an highest level of 130 (+30% of world average) in Northern America. These results are consistent with the publication of the FAO and the litterature on the subject.
 
+### Check 2 : food supply by commodity
 
+As a second check, we will try to reproduce the figure below published in the last FAO report @fao2023.
 
+![Fao Figure](media/fao_figure.jpg){width="600"}
+This example is interesting because FAO does not use the level of aggregation i2 (21 categories) described before but a more aggregated level (9 categories) that we propose to call i2b and store in our database as it is certainly more convenient in most of our future analysis. The aggregation suggested by FAO is decribed below : 
 
+```{r}
+base<-readRDS("data/base_fao_Kcal_2010_2022.RDS")
+tab<-base %>% select(i2, name_i2) %>% unique()
+tab$name_i2b<-as.factor(tab$name_i2)
+levels(tab$name_i2b) <- c("Beverage and other", "Fats and oils",
+                          "Fish and seefod", "Cereals",
+                          "Dairy and eggs (excl. butter)", "Fish and seefod", 
+                          "Fruits and vegetables","Meat",
+                          "Dairy and eggs (excl. butter)","Beverage and other",
+                          "Meat","Fats and oils",
+                          "Root, tubers and pulses","Beverage and other",
+                          "Root, tubers and pulses","Beverage and other",
+                          "Sugar","Sugar",
+                          "Beverage and other", "Fats and oils",
+                          "Fruits and vegetables"
+                          )
 
+tab$i2b<-tab$name_i2b
+levels(tab$i2b) <-c("X08","X02","X09","X01","X07","X04","X06","X05","X03")
+tab$name_i2b<-as.character(tab$name_i2b)
+tab$i2b<-as.character(tab$i2b)
+tab<-tab[,c(4,3,1,2)]
+tab<-tab[order(tab$i2b),]
+
+kable(tab,caption = "Aggregation in 9 food items used by FAO (2023)")
+
+```
+
+So, we add this new key to our database and store it for further use.
+
+```{r}
+base<-left_join(base, tab)
+saveRDS(base, "data/base_fao_Kcal_2010_2022.RDS")
+```
+
+We can know try to build the figure of FAO report by agregating the data according to continents and item code i2b.
+
+```{r}
+base <-readRDS("data/base_fao_Kcal_2010_2022.RDS")
+x<-base %>% filter(t=="2021", is.na(cont_s)==F) %>%
+             group_by(s,cont_s, i2b, name_i2b) %>%
+            summarise(K=sum(Kist),
+                      P = max(Pst)) %>%
+            mutate(KP=K*P) %>%
+            group_by(cont_s, i2b, name_i2b)%>%
+           summarise(KP=sum(KP,na.rm=T),P=sum(P,na.rm=T))%>%
+           mutate( K=KP/P) %>% 
+           group_by(cont_s) %>%
+           mutate(Kpct = 100*K/sum(K), name=paste(i2b, name_i2b))%>%
+           select(name, K, Kpct)
+
+res <-dcast(x, formula = name~cont_s, value.var="Kpct")
+kable(res, digits=1, caption = "Food ration in Kcal by continent and type of products (%)")
+```
+
+The table seems clearly in line with the figure of FAO report that we can try to replicate approximatively :
+
+```{r}
+ggplot(x) + aes(x=cont_s, y=Kpct, fill=name)+ 
+     geom_col() +
+    scale_x_discrete("Continents") +
+    scale_y_continuous("Food ration in Kcal by item (%)")+
+    ggtitle("Food supply composition by continent and commodity group",
+            subtitle = "Replication of the figure of FAO report 2023") +
+  theme_light()
+```
+
+### Check 3 : Map of evolution
+
+Finally, we try to replicate a map of evolution of total food supply by state between 2018-2019 and 2020-2021, created by FAO in order to evaluate the effects of Covid crisis :
+
+![Fao Figure](media/fao_map.jpg){width="600"}
+
+We can firsly produce the dataset :
+
+```{r}
+base <-readRDS("data/base_fao_Kcal_2010_2022.RDS")
+x<-base %>% filter(t %in% c("2018", "2019", "2020", "2021"), is.na(cont_s)==F) %>%
+             group_by(s,t) %>%
+            summarise(K=sum(Kist))
+
+tab<-dcast(x, formula = s~t, value.var="K")
+tab$t1 <- (tab$`2018`+tab$`2019`)/2
+tab$t2 <- (tab$`2020`+tab$`2021`)/2
+tab$var <-tab$t2-tab$t1
+tab<-tab[,c(1,6:8)]
+
+kable(head(tab),  caption = "Variation of total food supply in Kcal/capita/day", digits=0, col.names = c("state","Average 2018-19", "Average 2020-21", "Absolute variation"))
+```
+
+Then we link the data with the map file by ISO3 code and realize the map using the same statistical breaks than FAO report :  
+
+```{r}
+wld<- readRDS("geom/wld_states_fao.RDS")
+wld<-st_transform(wld, 4326)
+map<-readRDS("geom/wld_states_fao.RDS")
+map<-st_transform(map, 4326)
+mapdon <- merge(map, tab, by.x="iso3",by.y="s",all.x=T, all.y=F)
+mypal<-brewer.pal(n = 6,name = "RdYlGn")
+mf_map(wld, type="base",col="white")
+mf_map(mapdon, type="choro",var="var",
+       breaks = c(-1000,-100, -50, 0, 50, 100, 1000),
+       pal = mypal,
+       leg_title = "Kcal/capita/day",
+       leg_pos = "left",
+       leg_val_rnd = 0,
+       add=T)
+mf_layout("Change in dietary energy supply between 2020-21 and 2018-19",
+          frame=T,
+          credits = "Source : Replication of a map published by FAO in 2023" ,
+          scale= F
+            )
+```
+
+The resulting map is the same than the one published by FAO. They are only differences concerning the country with missing values. Northern Korea and South Sudan are not avilable on our map but present in FAO report. The reverse is true for Somalia. 
+
+## Conclusion
+
+We have successfully created table, graphics and maps that are exactly the same than the one published by FAO (except very minor differences) and we can therefore conclude that the creation of the database and the linkage with map files is correct.
+
+We will further enlarged the database to other indicators but the experiment on energy supply in Kcal is sufficient for the moment.
+
+A more difficult challenge will be to produce long terme tome series from 1963 to present but this point will be discussed in another chapter of the website.
 

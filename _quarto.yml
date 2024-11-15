@@ -11,7 +11,7 @@ website:
       - href: author.qmd
         text: "Author"
       - href: explo.qmd
-        text: "Exploration"
+        text: "Data check"
     
     right: 
       - icon: github # add icons as navbar buttons

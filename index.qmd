@@ -1,11 +1,5 @@
 ---
-title: "fao2"
+title: "About"
 ---
 
-This is a Quarto website.
-
-To learn more about Quarto websites visit <https://quarto.org/docs/websites>.
-
-```{r}
-1 + 1
-```
+This website is part of the WorldRegio project submitted by Claude Grasland to ERC advanced grant 2024. The objective of this website is to proceed to experements on a dataset that could be interesting for the project. 
