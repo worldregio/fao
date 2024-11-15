@@ -12,6 +12,8 @@ website:
         text: "Author"
       - href: explo.qmd
         text: "Data check"
+      - href: regions.qmd
+        text: "Regionalisation"
     
     right: 
       - icon: github # add icons as navbar buttons

@@ -1,0 +1,280 @@
+---
+title: "Regionalisation"
+format: 
+  html:
+    embed-resources: true
+bibliography: references.bib
+---
+
+In this note, we propose to test the use of the hierarchical classification algorithm with contiguity containment described in @guénard2022 and to apply it to FAO food balance sheets mesured in Kcal. The data are related to the year 2022, but it is possible to study time series back to 1961 under certain conditions (change in country borders, evolution of FAO nomenclature, etc.). It is alos possible to change the criteria of measurement, the graph of proximity, ...
+
+```{r, quietly = T,verbose = F,warn.conflicts = F,logical.return = F, warning=F, echo=FALSE,message=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE)
+
+library(knitr)
+library("adespatial",quietly = T,verbose = F,warn.conflicts = F,logical.return = F)
+library("magrittr")
+#install.packages('spDataLarge', repos='https://nowosad.github.io/drat/', type='source')
+library("spdep")
+library("sf")
+library("dplyr")
+library("mapsf")
+library("FactoMineR")
+```
+
+## Data
+
+### Geometry
+
+We select those countries in the world for which FAO data are available in 2022, removing Western Sahara and North Korea, for example. We keep small island states which will oblige us to choose a weight matrix different from classicall measure based on border contiguity.
+
+```{r}
+map<-readRDS("geom/wld_states_fao.RDS")
+# select data
+don<-readRDS("data/base_fao_Kcal_2010_2022.RDS") %>% 
+            filter(s %in% map$iso3, t=="2022")
+map<-map %>% filter(map$iso3 %in% don$s)
+# Agregate in 9 groups
+#don9 <- don %>% group_by(i2b, s) %>% 
+#            summarise(Kist = sum(Kist))
+#tab<-reshape2::dcast(don9,formula = s~i2b,fill = 0, value.var="Kist")
+
+# Keep all products
+don_full<-don %>% group_by(i,name_i, s) %>% 
+            summarise(Kist = sum(Kist))
+tab<-reshape2::dcast(don_full,formula = s~i,fill = 0, value.var="Kist")
+
+
+# load(code)
+meta<-don_full %>% select(i,name_i) %>% unique()
+
+
+
+
+# Select units
+map<-readRDS("geom/wld_states_fao.RDS") %>% filter(iso3 %in% tab$s)
+mapctr<-st_centroid(map)
+#mapctr4326<-st_transform(mapctr, 4326)
+#coo<-st_coordinates(mapctr4326)
+coo<-st_coordinates(mapctr)
+map$lon<-coo[,1]
+map$lat<-coo[,2]
+#mapsel <- map %>% filter(!ISO3 %in% c("PYF","KIR","TON","WSM","FSM","SYC","ISL","NZL", "ATG","BRB","KNA","LCA","MLT"))
+
+
+
+# merge data & geometry
+mapctr<-merge(mapctr,tab,by.x="iso3",by.y="s")
+
+# filter
+
+```
+
+### Geopolitical network
+
+As discussed in another part of the WorlRegio project (see. here)\[https://worldregio.github.io/world_geom/geopolitical_network.html\], thay are plenty of solutions for the elaboration of a network of proximity between states (i.e. a weight matrix that will be used as constraint in the clustering algorithm).
+
+We choose here a method of Voronoï-Delaunay triangulation on map where we have used a polar projection on the North
+
+```{r}
+don.xy <-st_coordinates(st_centroid(mapctr))
+row.names(don.xy)<-mapctr$iso3
+
+
+codei<-data.frame(i = 1:dim(mapctr)[1], iso3i=mapctr$iso3)
+codej<-data.frame(j = 1:dim(mapctr)[1], iso3j=mapctr$iso3)
+
+library(spdep)
+don.edge <-
+  don.xy %>%
+  tri2nb %>%
+  nb2listw(style = "B") %>%
+  listw2sn 
+
+res<-don.edge
+class(res)<-"data.frame"
+res<-res %>%
+  select(i=from, j=to) %>%
+  left_join(codei) %>%
+  left_join(codej)
+#kable(head(res,10), caption = "Liste des liens (non pondérés)")
+
+mf_map(map$geometry, col="lightyellow", border="gray", type="base")
+points(don.xy[,1],don.xy[,2],asp=1, pch=20, 
+     xlab="y",ylab="x", main="Topologie du graphe de contiguïté")
+
+for (i in 1:dim(don.edge)[1]) {
+  o<-don.edge$from[i]
+  d<-don.edge$to[i]
+  segments(don.xy[o,1], don.xy[o,2], don.xy[d,1],don.xy[d,2], col="red")
+}
+points(don.xy[,1],don.xy[,2],asp=1, pch=20, col="black")
+text(don.xy[,1],don.xy[,2],row.names(don.xy),cex=0.4, col="blue", pos=3)
+mf_layout("Voronoï-Delaunay triangulation of the world", frame=T)
+```
+
+As you can see, all states are connected, eventually at long distance as we can see in the example of the link between Canada and Korea or French Polynesia and Chile.
+
+This solution is without any doubt likely to be criticized because it depends on the projection, on the choice of the center of states adopted, on the fact to keep or eliminate small states, etc. But our purpose is mainly pedagogical here and it is not the time to discuss the choice of the best geopolitical network. Just keep in mind that this choice has important implications on the results.
+
+### Dissimilarity matrix
+
+We begin directly with the case of a dissimilarity matrix using all 95 items proposed by the FAO to describe a country's diet. The table is of the following form. The unit of measurement is Kcal per person per day.
+
+```{r}
+don <-st_drop_geometry(mapctr) 
+don<-don[,c(5:99)]
+row.names(don)<-mapctr$iso3
+kable(head(don,10), caption = "Données brutes")
+kable(head(round(100*prop.table(as.matrix(don),1),2), 5), caption = "Profil en ligne")
+```
+
+The code of products will probably look very abstract for the reader but you can find more detailed explication on [FAO website](https://www.fao.org/statistics/highlights-archive/highlights-detail/food-balance-sheets-2010-2022-global-regional-and-country-trends/en)
+
+To measure the dissimilarity between two countries, we decide to use the Whittaker distance measure, which is the sum of the absolute values of the percentage differences divided by 2 :
+
+$D_{ij} = \frac{1}{2}\sum_{k=1}^K |\frac{x_{ik}}{x_{i.}}-\frac{x_{jk}}{x_{j.}}|$
+
+Calculation is very easy with the `dist.ldc` function of the package **adespatial**, which is optimized for calculation on large arrays (which is not the case here).
+
+```{r}
+don.dis <- don %>% dist.ldc("whittaker")
+
+m<-as.matrix(don.dis)
+kable(m[1:5,1:5],digits=3, caption = "Extrait de la matrice de dissimilarité")
+
+```
+
+As in the case of the geopolitical network, the choice of the dissimilarity matrix is likely to be criticized because they are many possible options that could obviously produce different results. We could firstly choose another measuer of dissimilarity (many of them are presented and discussed in @guénard2022). But we could also decide to use a different weight for the measure of the role of the 95 food items. Instead of Kcal/, we could have simply use the Kg/capita. Another option could be to focus on proteins or fat present in each item. In this cases some items would have an increase or decrease of their influence in the elaboration of dissimilarity. Last but not least, the level of disaggregation of food items would modify the results (consider the case of oils ...).
+
+## Classification
+
+Having defined the weight matrix and the dissimilarity matrix, we can move on to classification, which is carried out using the `constr.hclust()` function from the **adespatial** package, whose instructions for use are nicely described in @guénard2022 with an example. 
+
+```{r}
+don.chclust <- constr.hclust(d = don.dis, links = don.edge, coords = don.xy[, c(1, 2)])
+```
+
+### Tree
+
+As in a classical hierarchical classification, we have to analyse the tree before to take a decision on the number of regions we want to build.
+
+```{r}
+don.hclust<-don.chclust
+class(don.hclust)<-"hclust"
+plot(don.hclust,  hang=-1, cex=0.3)
+
+```
+
+The choice is not obvious but we can start with a division in 6 classes
+
+### Network visualization of regions
+
+The **adespatial** package allows us to visualize the result in the form of a graph. The borders of the corresponding countries are superimposed on the graph.
+
+```{r, fig.height=7}
+
+plot(don.chclust,             # Objet classification  
+     k = 6,                    # Nombre de classes
+     links = TRUE,             # trace les liens
+     plot = TRUE,              # trace les sommets
+     lwd = 2,                  # épaisseur des liens
+     cex = 1,                  # taille des sommets
+     pch = 21,                 # type des sommets           
+     hybrids = "single",       # type de coloriage des arêtes inter-cluster (single ou change)
+     lwd.hyb = 0.25,           # épaisseur des arêtes inter-clusters
+     lty.hyb = 3,              # type des arêtes interclusters
+     axes=F
+  )
+
+plot(map$geometry, col=NA, border="black",lwd=0.5, add=T, main="Typology")
+mf_layout("Visualization of the spatial network of world food regions",
+          credits = "Grasland C., 2024, WorldRegio Project",
+          frame=T)
+
+```
+
+One of the most interesting results of this example if the fact that the *regions* obtained does not necessarily follow the usual limits of continents, precisely because we have selected a Voronoï-Delaunay network that made possible links at long distance. Two examples can illustrate this point :
+
+- The region represented in gray associates Europe (including Russia), USA, Canada, Chile, Argentina, Uruguay, Australia and New-Zealand, creating a very good approximation of the so-called "Global North" or "Western". This result was possible only because of the long distance links creating by the Voronoï-Delaunay network across the Pacific through the ... territory of French Polynesia. Should we have eliminated this entity, such a region would not have come to existence !
+
+- The region represented in blue is associated to the majority of muslim countries and associate Northern Africa with Middle East, Central Asia and part of the Indian Ocean. Huntington's fan would probably interpret this result through the lenz of religion (e.g. the fact that alcohol is forbidden) but it is not perfectly true because many other products contribute to the result as we will see below. And as in the previous case, the result is strongly dependent from the geopolitical network adopted. 
+
+**To summarize** : this example illustrate that regionalizations of the world based on a criterium of homogeneity  are always a compromise between the choice of the geopolitical network used as weight matrix and the choice of the dissimilarity measure. The big danger from scientific point of view is to consider that only one factor is at stake when both are clearly combined. 
+
+
+
+### Specificities of region
+
+We use the `catdes()` function from the **FactoMineR** package to analyze class profiles. 
+
+```{r}
+don$clust<-as.factor(cutree(k=7,don.chclust))
+names(don)<-c(meta$name_i,"clust")
+desc<-catdes(don,num.var = 96,proba = 0.01)
+
+c<-data.frame(desc$quanti[[1]])
+cmax<-gsub("\\."," ",paste(row.names(c[c$v.test>3,]),collapse = ", "))
+cmin<-gsub("\\."," ",paste(row.names(c[c$v.test< -3,]),collapse = ", ") )
+l1<-c(cmin,cmax)
+
+c<-data.frame(desc$quanti[[2]])
+cmax<-gsub("\\."," ",paste(row.names(c[c$v.test>3,]),collapse = "; "))
+cmin<-gsub("\\."," ",paste(row.names(c[c$v.test< -3,]),collapse = "; ") )
+l2<-c(cmin,cmax)
+
+c<-data.frame(desc$quanti[[3]])
+cmax<-gsub("\\."," ",paste(row.names(c[c$v.test>3,]),collapse = ", "))
+cmin<-gsub("\\."," ",paste(row.names(c[c$v.test< -3,]),collapse = ", ") )
+l3<-c(cmin,cmax)
+
+c<-data.frame(desc$quanti[[4]])
+cmax<-gsub("\\."," ",paste(row.names(c[c$v.test>3,]),collapse = "; "))
+cmin<-gsub("\\."," ",paste(row.names(c[c$v.test< -3,]),collapse = "; ") )
+l4<-c(cmin,cmax)
+
+c<-data.frame(desc$quanti[[5]])
+cmax<-gsub("\\."," ",paste(row.names(c[c$v.test>3,]),collapse = "; "))
+cmin<-gsub("\\."," ",paste(row.names(c[c$v.test< -3,]),collapse = "; ") )
+l5<-c(cmin,cmax)
+
+c<-data.frame(desc$quanti[[6]])
+cmax<-gsub("\\."," ",paste(row.names(c[c$v.test>3,]),collapse = ", "))
+cmin<-gsub("\\."," ",paste(row.names(c[c$v.test< -3,]),collapse = ", ") )
+l6<-c(cmin,cmax)
+
+c<-data.frame(desc$quanti[[7]])
+cmax<-gsub("\\."," ",paste(row.names(c[c$v.test>3,]),collapse = "; "))
+cmin<-gsub("\\."," ",paste(row.names(c[c$v.test< -3,]),collapse = "; ") )
+l7<-c(cmin,cmax)
+
+mat<-rbind(l1,l2,l3,l4,l5,l6,l7)
+row.names(mat)<-c("Reg. 1","Reg. 2","Reg. 3", "Reg. 4","Reg. 5","Reg. 6", "Reg. 7")
+
+
+kable(mat, caption = "Specificities of the regions in terms of energy supply measured in Kcal)",
+      col.names = c("Under-représentation (z-score < -3)","Over-représentation (z-score > +3)" ))
+#plot(catdes(don,num.var = 96,proba = 1),cex.names = 1,barplot = T,show = "quanti",output = "figure")
+```
+
+### Final map
+
+
+
+```{r}
+clas<-data.frame(iso3=row.names(don),clust=don$clust)
+
+map <- merge(map,clas, by="iso3",all.x=T,all.y=F)
+#levels(map$clust)<- c("Blé", "Maïs","Autres","Riz")
+
+#mypal<-c("lightyellow","brown","orange","lightblue")
+
+mf_map(map, type="typo",
+       var="clust", 
+ #      pal=mypal,
+       leg_pos = "left",
+       
+       leg_title = "Regions")
+mf_layout("Division of the world in seven food regions in 2022",frame = T,credits = "Auteur : Claude Grasland, 2024 -  Data from FAO - Classfiation realized with adespatial"
+          )
+```
